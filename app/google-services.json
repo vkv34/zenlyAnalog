@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "337839716872",
+    "firebase_url": "https://zenlyanalog-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "zenlyanalog",
+    "storage_bucket": "zenlyanalog.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:337839716872:android:17c1a4138b695e8b28efbd",
+        "android_client_info": {
+          "package_name": "com.example.myapplication"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "337839716872-cnu270jn75af82aij178ig2cvmcttik7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.myapplication",
+            "certificate_hash": "b44cc0ea6d29bf4c98e818f6b7186a126ae9befb"
+          }
+        },
+        {
+          "client_id": "337839716872-25h4olpg9829kh5v74k7boijp15sjfbg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQl9tHqObOyt1vCUEF6pzWmhtbTUJVflM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "337839716872-25h4olpg9829kh5v74k7boijp15sjfbg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

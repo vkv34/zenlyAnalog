@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:id="@+id/maps_item"
+        android:title="Maps"
+        android:icon="@drawable/ic_map"/>
+
+    <item
+        android:id="@+id/friends_item"
+        android:title="Friends"
+        android:icon="@drawable/ic_friends"/>
+
+    <item
+        android:id="@+id/messages_item"
+        android:title="Messages"
+        android:icon="@drawable/ic_chat"/>
+
+    <item
+        android:id="@+id/info_item"
+        android:title="Info"
+        android:icon="@drawable/ic_info"/>
+    <item
+        android:id="@+id/log_item"
+        android:title="Log out"
+        android:icon="@drawable/ic_logout_24"/>
+
+</menu>
