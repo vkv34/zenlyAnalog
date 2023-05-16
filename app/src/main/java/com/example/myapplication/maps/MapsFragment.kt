@@ -2,7 +2,10 @@ package com.example.myapplication.maps
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -12,16 +15,18 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.location.LocationManager
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
-import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.example.myapplication.R
 import com.example.myapplication.User
+import com.example.myapplication.services.LocationService
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -42,6 +47,7 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.TimeUnit
 
 
 /**
@@ -49,6 +55,10 @@ import java.net.URL
  */
 class MapsFragment : Fragment() {
 
+    /**
+     * Интервал проверки геопозиции в фоне
+     */
+    private val serviceInterval = TimeUnit.SECONDS.toMillis(10);
 
     /**
      * регистрация запроса на получение геопозиции
@@ -64,17 +74,33 @@ class MapsFragment : Fragment() {
     }
 
     private val mapKitFactory = MapKitFactory.getInstance()
+
+    /**
+     * Объекты на карте
+     */
     private lateinit var mapObjects: MapObjectCollection
+
+    /**
+     * Местоположение пользователя
+     */
     private var userObject: PlacemarkMapObject? = null
 
+    /**
+     * Пользователи с сылкой на плейсмарк
+     */
     data class UserWithPlaceMark(
         var user: User,
         val placemarkMapObject: PlacemarkMapObject,
     )
 
+    /**
+     * друзья на карте
+     */
     private var friendsMapObjectCollection: MutableList<UserWithPlaceMark> = mutableListOf()
 
-
+    /**
+     * менеджер местоположения
+     */
     private lateinit var locationManager: LocationManager
 
     /**
@@ -102,18 +128,28 @@ class MapsFragment : Fragment() {
         mapObjects = yandexMaps.map.mapObjects
         getLocation()
         getFriends()
+        // Запускаем службу с заданным интервалом
+        startServiceWithInterval()
         return view;
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (! checkPermissions()) {
-
-            /**
-             * запрос разрешения на местоположение
-             */
-
+        //проверка разрешения на местоположение
+        if (! checkLocationPermissions()) {
+            //запрос разрешения на местоположение
             permissionActivityResultLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        //проверка разрешения на местопложение в фоне
+        if (! checkBackgroundLocationPermission()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                permissionActivityResultLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+
+        //проверка разпрешения на использование службы в первом плане.
+        if (! checkForgeGroundServicePermission()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                permissionActivityResultLauncher.launch(Manifest.permission.FOREGROUND_SERVICE)
         }
         locationManager =
             requireActivity().getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -138,23 +174,51 @@ class MapsFragment : Fragment() {
     /**
      * Проверка наличия разрешения на местоположение
      */
-    private fun checkPermissions(): Boolean {
-        return (ActivityCompat.checkSelfPermission(
+    private fun checkLocationPermissions(): Boolean {
+        return (ContextCompat.checkSelfPermission(
             requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.checkSelfPermission(
+                && ContextCompat.checkSelfPermission(
             requireContext(), Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED)
     }
 
+    /**
+     * Проверка разрешения на работу в фоне
+     */
+    private fun checkBackgroundLocationPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val backgroundLocationPermission = Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ContextCompat.checkSelfPermission(
+                requireContext(),
+                backgroundLocationPermission
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            // Для версий Android ниже 10 (API 29) разрешение не требуется
+            true
+        }
+    }
+
+    /**
+     *
+     */
+    private fun checkForgeGroundServicePermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            ContextCompat.checkSelfPermission(
+                requireContext(),
+                Manifest.permission.FOREGROUND_SERVICE
+            ) == PackageManager.PERMISSION_GRANTED
+        else true
+    }
+
     @SuppressLint("MissingPermission")
     private fun getLocation() {
-        if (! checkPermissions())
+        if (! checkLocationPermissions())
             return
         val phone = Firebase.auth.currentUser?.phoneNumber
 
         if (hasGps()) {
-            if (! checkPermissions())
+            if (! checkLocationPermissions())
                 return
             locationManager.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
@@ -242,17 +306,55 @@ class MapsFragment : Fragment() {
         return output
     }
 
+    private fun startServiceWithInterval() {
+        val serviceIntent = Intent(requireContext(), LocationService::class.java)
+        val pendingIntent = PendingIntent.getService(
+            requireContext(), 0, serviceIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alarmManager = requireActivity().getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val startTime = System.currentTimeMillis()
+        alarmManager.setRepeating(
+            AlarmManager.RTC_WAKEUP,
+            startTime,
+            serviceInterval,
+            pendingIntent
+        )
+    }
+
+    private fun stopService() {
+        val serviceIntent = Intent(requireContext(), LocationService::class.java)
+        val pendingIntent = PendingIntent.getService(
+            requireContext(), 0, serviceIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alarmManager = requireActivity().getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarmManager.cancel(pendingIntent)
+    }
+
+
+    /**
+     * Добавление слушателя на изменение полльзоватлей и их местоположения
+     */
     private fun getFriends() {
-        val usersRef = FirebaseDatabase.getInstance().getReference("users")
+        FirebaseDatabase.getInstance().getReference("users")
             .addValueEventListener(
                 object : ValueEventListener {
                     override fun onDataChange(snapshot: DataSnapshot) {
 
                         val users = mutableListOf<User>()
                         for (postSnapshot in snapshot.children) {
-                            postSnapshot.getValue<User>()?.let { users.add(it) }
+                            try {
+                                postSnapshot.getValue<User>()?.let { users.add(it) }
+                            } catch (_: Exception) {
+                            }
                         }
 
+                        /**
+                         * Все пользователи, которые должны быть на карте
+                         */
                         val usersOnMapList = users.filter {
                             var contains = false
                             friendsMapObjectCollection.forEach { friendList ->
@@ -264,16 +366,23 @@ class MapsFragment : Fragment() {
                             contains
                         }
 
-                        val addedUsers = users.filter { user->
+                        /**
+                         * Пользователи, которых необхоимо добавить
+                         */
+                        val addedUsers = users.filter { user ->
                             var contains = false
-                            usersOnMapList.forEach {userOnMap->
-                                if(userOnMap.uuid == user.uuid){
+                            usersOnMapList.forEach { userOnMap ->
+                                if (userOnMap.uuid == user.uuid) {
                                     contains = true
                                     return@forEach
                                 }
                             }
-                            !contains
+                            ! contains
                         }
+
+                        /**
+                         * Пользователи, которых необходимо удалить с карты
+                         */
                         val removedUsers = friendsMapObjectCollection.filter {
                             var contains = false
                             usersOnMapList.forEach { userOnMap ->
@@ -282,13 +391,15 @@ class MapsFragment : Fragment() {
                                     return@forEach
                                 }
                             }
-                            !contains
+                            ! contains
                         }
 
+                        //Удаление пользоватлей с карты
                         removedUsers.forEach {
                             mapObjects.remove(it.placemarkMapObject)
+                            friendsMapObjectCollection.remove(it)
                         }
-
+                        //Добавление пользоватлей на карту
                         addedUsers.forEach { user ->
                             CoroutineScope(Dispatchers.IO).launch {
                                 getBitmapFromURL(user.imageUser)?.let { bitmap ->
@@ -313,20 +424,14 @@ class MapsFragment : Fragment() {
                                 }
                             }
                         }
-
+                        //обновление местопложения пользователей
                         friendsMapObjectCollection.forEach {
-                            it.user = users.first {
-                                p->p.uuid == it.user.uuid
+                            it.user = users.first { p ->
+                                p.uuid == it.user.uuid
                             }
-                        }
-
-                        friendsMapObjectCollection.forEach {
-                            //mapObjects.remove(it.placemarkMapObject)
-//                            mapObjects.addPlacemark(Point(it.user.lastLatitude, it.user.lastLongitude))
                             it.placemarkMapObject.geometry =
                                 Point(it.user.lastLatitude, it.user.lastLongitude)
                         }
-
                     }
 
                     override fun onCancelled(error: DatabaseError) {
