@@ -200,7 +200,7 @@ class MapsFragment : Fragment() {
     }
 
     /**
-     *
+     * Проверка на использование службы в первом плане.
      */
     private fun checkForgeGroundServicePermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
@@ -211,15 +211,21 @@ class MapsFragment : Fragment() {
         else true
     }
 
+    /**
+     * Добавление слушателя на геолокацию пользователя
+     */
     @SuppressLint("MissingPermission")
     private fun getLocation() {
+        //провека на доступ к геопозиции
         if (! checkLocationPermissions())
             return
         val phone = Firebase.auth.currentUser?.phoneNumber
 
+        //проверка на то, включен ли GPS
         if (hasGps()) {
             if (! checkLocationPermissions())
                 return
+            //Слушатель геопозиции
             locationManager.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
                 5000,
@@ -228,6 +234,7 @@ class MapsFragment : Fragment() {
                 if (phone != null) {
 
                     if (userObject == null) {
+                        //Обновление геопозиции и добаление плейсмарка на карту
                         FirebaseDatabase.getInstance().getReference("users")
                             .child(phone)
                             .get()
@@ -247,9 +254,10 @@ class MapsFragment : Fragment() {
                                 }
                             }
                     } else {
+                        //обновление геопозиции
                         userObject !!.geometry = Point(it.latitude, it.longitude)
                     }
-
+                    //сохранение геопозиции в FireBase
                     FirebaseDatabase.getInstance()
                         .getReference("users")
                         .child(phone)
@@ -265,6 +273,9 @@ class MapsFragment : Fragment() {
         }
     }
 
+    /**
+     * Загрузка картинки при помощи ссылки
+     */
     fun getBitmapFromURL(src: String?): Bitmap? {
         return try {
             val url = URL(src)
@@ -281,6 +292,10 @@ class MapsFragment : Fragment() {
         }
     }
 
+
+    /**
+     * Кроп картинки
+     */
     fun getCroppedBitmap(bitmap: Bitmap): Bitmap? {
         val output = Bitmap.createBitmap(
             bitmap.width,
@@ -306,6 +321,9 @@ class MapsFragment : Fragment() {
         return output
     }
 
+    /**
+     * Запуск сервиса с интервалом
+     */
     private fun startServiceWithInterval() {
         val serviceIntent = Intent(requireContext(), LocationService::class.java)
         val pendingIntent = PendingIntent.getService(
@@ -323,6 +341,9 @@ class MapsFragment : Fragment() {
         )
     }
 
+    /**
+     * Остановка сервиса
+     */
     private fun stopService() {
         val serviceIntent = Intent(requireContext(), LocationService::class.java)
         val pendingIntent = PendingIntent.getService(

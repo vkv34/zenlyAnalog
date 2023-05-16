@@ -32,6 +32,9 @@ private const val TAG = "LocationService"
 
 class LocationService : Service() {
 
+    /**
+     * Интервал проверки геопозиции в фоне
+     */
     private val interval = TimeUnit.SECONDS.toMillis(10)
 
     private val CHANNEL_ID = "ForegroundServiceChannel"
@@ -44,6 +47,9 @@ class LocationService : Service() {
         return null
     }
 
+    /**
+     * Создание канала уведомлений
+     */
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
@@ -55,6 +61,9 @@ class LocationService : Service() {
         notificationManager.createNotificationChannel(channel)
     }
 
+    /**
+     * Создание уведомления
+     */
     private fun buildNotification(): Notification {
         val notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Location Service")
@@ -84,14 +93,16 @@ class LocationService : Service() {
             return START_NOT_STICKY
         }
 
+        //добавление слушателя на геопозицию
         fusedLocationClient.requestLocationUpdates(
             locationRequest,
             locationCallback,
             null
         )
-
+        //создание канала с уведомлением
         createNotificationChannel()
         val notification: Notification = buildNotification()
+        //проверка на возможность работы в фоне и запуск
         if (checkBackgroundLocationPermission() && checkForgeGroundServicePermission()) {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -132,6 +143,9 @@ class LocationService : Service() {
         fusedLocationClient.removeLocationUpdates(locationCallback)
     }
 
+    /**
+     * Создание запроса на местоположение
+     */
     private fun createLocationRequest() {
         locationRequest = LocationRequest.Builder(
             Priority.PRIORITY_HIGH_ACCURACY,
@@ -139,6 +153,9 @@ class LocationService : Service() {
         ).build()
     }
 
+    /**
+     * Слушатель местоположения
+     */
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(locationResult: LocationResult) {
             for (location in locationResult.locations) {
